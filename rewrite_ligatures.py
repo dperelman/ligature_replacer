@@ -10,7 +10,7 @@ import fontTools.agl
 from fontTools.ttLib import TTFont
 
 parser = argparse.ArgumentParser()
-parser.add_argument('-i', '--in', type=str, dest='in_ttf',
+parser.add_argument('in_ttf', type=str,
                     help='Input TrueType font file (.ttf).')
 parser.add_argument('-o', '--output', type=str, dest='out_ttf',
                     help='Output TrueType font file (.ttf).')
