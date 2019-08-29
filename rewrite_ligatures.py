@@ -41,17 +41,8 @@ def unicodeNames2str(l):
     return ''.join([chr(fontTools.agl.AGL2UV.get(c, None)) for c in l])
 
 
-if args.glyphs_in:
-    with open(args.glyphs_in) as json_file:
-        min_lengths = json.load(json_file)
-    glyphs_to_clear = min_lengths.keys()
-else:
-    glyphs_to_clear = set()
-
-
 # Based on https://github.com/googlefonts/nototools/blob/
 #   bb309e87d273b3afd89b6c66c43b332899e74f5d/nototools/hb_input.py#L143
-all_ligatures = dict()
 all_ligatures_by_comp = dict()
 ligatures_by_glyph = collections.defaultdict(list)
 ligature_glyphs = set()
@@ -60,34 +51,30 @@ ligatures_subtable = None
 for lookup_index, lookup in enumerate(gsub.LookupList.Lookup):
     for st in lookup.SubTable:
         if lookup.LookupType == 4:
+            ligatures_subtable = st
             for prefix, ligatures in st.ligatures.items():
                 for ligature in ligatures:
                     full_comp = [prefix] + list(ligature.Component)
                     s = unicodeNames2str(full_comp)
                     if args.words_out:
                         print(s, file=args.words_out)
-                    all_ligatures[s] = ligature.LigGlyph
                     ligatures_by_glyph[ligature.LigGlyph].append(s)
                     if ligature.LigGlyph in ligature_glyphs:
                         multi_ligature_glyphs.add(ligature.LigGlyph)
                     ligature_glyphs.add(ligature.LigGlyph)
+                    all_ligatures_by_comp[tuple(full_comp)] = ligature.LigGlyph
 
-                    if ligature.LigGlyph in glyphs_to_clear:
-                        ligatures.remove(ligature)
-                        ligatures_subtable = st
-                    else:
-                        all_ligatures_by_comp[tuple(full_comp)] =\
-                                ligature.LigGlyph
-
-if not args.glyphs_in:
-    min_lengths = {glyph: min(len(s) for s in ligatures_by_glyph[glyph])
-                   for glyph in multi_ligature_glyphs}
-    if args.glyphs_out:
-        with open(args.glyphs_out, 'w') as outfile:
-            json.dump(min_lengths, outfile)
+min_lengths = {glyph: min(len(s) for s in ligatures_by_glyph[glyph])
+               for glyph in multi_ligature_glyphs}
+if args.glyphs_out:
+    with open(args.glyphs_out, 'w') as outfile:
+        json.dump(min_lengths, outfile)
 
 
 if args.out_ttf and args.words_in:
+    if args.glyphs_in:
+        with open(args.glyphs_in) as json_file:
+            min_lengths = json.load(json_file)
     wordlist = args.words_in.readlines()
     glyph_lookup = {v: k for k, v in min_lengths.items()}
     last_glyph = glyph_lookup[min(glyph_lookup.keys())]
@@ -97,6 +84,10 @@ if args.out_ttf and args.words_in:
             last_glyph = glyph_lookup[i]
         else:
             glyph_lookup[i] = last_glyph
+
+    glyphs_to_clear = min_lengths.keys()
+    all_ligatures_by_comp = {k: v for k, v in all_ligatures_by_comp.items()
+                             if v not in glyphs_to_clear}
 
     for word in wordlist:
         word = word.strip()
